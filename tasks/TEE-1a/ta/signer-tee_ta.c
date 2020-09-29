@@ -51,7 +51,6 @@ TEE_Result TA_CreateEntryPoint(void)
 
     TEE_ObjectHandle hobj_storage = TEE_HANDLE_NULL;
     TEE_ObjectHandle hobj_key = TEE_HANDLE_NULL;
-    (void)hobj_key;
     TEE_Result res = TEE_ERROR_OUT_OF_MEMORY;
     struct ecdsa_instance *inst = NULL;
 
@@ -101,7 +100,13 @@ TEE_Result TA_CreateEntryPoint(void)
             goto out;
         }
     }
-
+    else if (res != TEE_SUCCESS) {
+        EMSG("Call to TEE_OpenPersistentObject fail, res=0x%08x", res);
+        goto out;
+    }
+    else {
+        DMSG("ECDSA keypair found");
+    }
 
 out:
     if (res != TEE_SUCCESS) {
@@ -147,9 +152,9 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types, TEE_Param __maybe_unus
 {
     DMSG("has been called");
 
+    TEE_ObjectHandle hobj_storage = TEE_HANDLE_NULL;
     TEE_Result res;
     const struct ecdsa_instance *inst;
-    (void)inst;
     uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE,
                                                TEE_PARAM_TYPE_NONE,
@@ -169,10 +174,18 @@ TEE_Result TA_OpenSessionEntryPoint(uint32_t param_types, TEE_Param __maybe_unus
 
     inst = TEE_GetInstanceData();
 
-    *sess_ctx = sess;
+    // try to load ECDSA key set
+    if ((res = TEE_OpenPersistentObject(TEE_STORAGE_PRIVATE,
+                                        inst->key_obj_id, inst->key_obj_id_size,
+                                        TEE_DATA_FLAG_ACCESS_READ | TEE_DATA_FLAG_SHARE_READ,
+                                        &hobj_storage)) != TEE_SUCCESS) {
+        EMSG("call to TEE_OpenPersistentObject failed, res=0x%08x", res);
+        return res;
+    }
 
-    res = TEE_SUCCESS;
-    return res;
+
+    *sess_ctx = sess;
+    return TEE_SUCCESS;
 }
 
 /*
